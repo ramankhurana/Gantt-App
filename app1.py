@@ -10,7 +10,9 @@ def create_gantt_chart_app():
     st.write("Enter your project tasks, their segments, and customize the chart.")
 
     st.sidebar.header("Project Management")
-    uploaded_file = st.sidebar.file_uploader("Upload a saved project (CSV)", type="csv")
+    uploaded_files = st.sidebar.file_uploader(
+        "Upload saved project CSVs", type="csv", accept_multiple_files=True
+    )
     download_button_placeholder = st.sidebar.empty()
 
     # Initialize session state defaults
@@ -28,31 +30,33 @@ def create_gantt_chart_app():
         st.session_state.selected_discrete_color_name = "Default Blue"
     if 'selected_continuous_scale' not in st.session_state:
         st.session_state.selected_continuous_scale = "Plasma"
+    if 'task_names' not in st.session_state:
+        st.session_state.task_names = [f"Task {i+1}" for i in range(st.session_state.num_main_tasks)]
 
     # --- File Upload Processing with Proper Rerun Handling ---
-    if uploaded_file is not None and 'project_loaded' not in st.session_state:
+    if uploaded_files:
         try:
-            loaded_df = pd.read_csv(uploaded_file)
-            loaded_df['Start'] = pd.to_datetime(loaded_df['Start'], errors='coerce')
-            loaded_df['End'] = pd.to_datetime(loaded_df['End'], errors='coerce')
+            df_list = []
+            for f in uploaded_files:
+                df_tmp = pd.read_csv(f)
+                df_tmp['Start'] = pd.to_datetime(df_tmp['Start'], errors='coerce')
+                df_tmp['End'] = pd.to_datetime(df_tmp['End'], errors='coerce')
 
-            if loaded_df['Start'].isnull().any() or loaded_df['End'].isnull().any():
-                raise ValueError("Invalid datetime format in CSV.")
+                if df_tmp['Start'].isnull().any() or df_tmp['End'].isnull().any():
+                    raise ValueError("Invalid datetime format in CSV.")
+
+                df_list.append(df_tmp)
+
+            loaded_df = pd.concat(df_list, ignore_index=True)
 
             st.session_state.tasks_data = loaded_df.to_dict('records')
             st.session_state.num_main_tasks = loaded_df['Task'].nunique()
-            st.session_state.current_plot_title = uploaded_file.name.replace(".csv", "").replace("_gantt_project", "").replace("_", " ")
-            st.session_state.project_loaded = True
-
-            st.rerun()
-
+            st.session_state.current_plot_title = uploaded_files[0].name.replace(".csv", "").replace("_gantt_project", "").replace("_", " ")
         except Exception as e:
             st.sidebar.error(f"Error loading file: {e}")
             st.session_state.tasks_data = []
             st.session_state.num_main_tasks = 1
             st.session_state.current_plot_title = "My Project Timeline"
-            st.session_state.project_loaded = False
-            st.rerun()
 
     # --- Chart Configuration UI ---
     plot_title = st.text_input("Enter the title for your Gantt Chart:", value=st.session_state.current_plot_title, key="plot_title_input")
@@ -82,28 +86,76 @@ def create_gantt_chart_app():
     st.session_state.use_single_color = use_single_color
 
     st.subheader("Task Details")
-    num_tasks = st.number_input("How many main tasks do you have?", min_value=1, value=st.session_state.num_main_tasks, step=1, key="main_task_count_input")
+    num_tasks = st.number_input(
+        "How many main tasks do you have?",
+        min_value=1,
+        value=st.session_state.num_main_tasks,
+        step=1,
+        key="main_task_count_input",
+    )
     st.session_state.num_main_tasks = num_tasks
+
+    if len(st.session_state.task_names) < num_tasks:
+        for _ in range(num_tasks - len(st.session_state.task_names)):
+            st.session_state.task_names.append(
+                f"Task {len(st.session_state.task_names)+1}"
+            )
+    elif len(st.session_state.task_names) > num_tasks:
+        st.session_state.task_names = st.session_state.task_names[:num_tasks]
 
     current_tasks_input_data = []
 
     task_df = pd.DataFrame(st.session_state.tasks_data)
-    if not task_df.empty and 'Task' in task_df.columns:
-        ordered_task_names = list(task_df['Task'].drop_duplicates())
-    else:
-        ordered_task_names = [f"Task {i+1}" for i in range(st.session_state.num_main_tasks)]
+    if not task_df.empty and 'Task' in task_df.columns and not st.session_state.get("loaded_names_set"):
+        st.session_state.task_names = list(task_df['Task'].drop_duplicates())
+        st.session_state.loaded_names_set = True
+
+    ordered_task_names = st.session_state.task_names
 
     for i in range(num_tasks):
-        st.markdown(f"---")
-        task_name = ordered_task_names[i] if i < len(ordered_task_names) else f"Task {i+1}"
-        task_name = st.text_input(f"Main Task {i+1} Name", value=task_name, key=f"main_task_name_{i}")
+        st.markdown("---")
+        cols = st.columns(4)
+        if cols[0].button("Move Up", key=f"move_up_{i}") and i > 0:
+            st.session_state.task_names[i - 1], st.session_state.task_names[i] = (
+                st.session_state.task_names[i],
+                st.session_state.task_names[i - 1],
+            )
+            st.experimental_rerun()
+        if cols[1].button("Move Down", key=f"move_down_{i}") and i < num_tasks - 1:
+            st.session_state.task_names[i], st.session_state.task_names[i + 1] = (
+                st.session_state.task_names[i + 1],
+                st.session_state.task_names[i],
+            )
+            st.experimental_rerun()
+        if cols[2].button("Add Above", key=f"add_above_{i}"):
+            st.session_state.task_names.insert(i, f"Task {len(st.session_state.task_names)+1}")
+            st.session_state.num_main_tasks += 1
+            st.experimental_rerun()
+        if cols[3].button("Add Below", key=f"add_below_{i}"):
+            st.session_state.task_names.insert(i + 1, f"Task {len(st.session_state.task_names)+1}")
+            st.session_state.num_main_tasks += 1
+            st.experimental_rerun()
+
+        task_name = st.text_input(
+            f"Main Task {i+1} Name",
+            value=st.session_state.task_names[i],
+            key=f"main_task_name_{i}",
+        )
+        st.session_state.task_names[i] = task_name
         st.subheader(f"Task {i+1}")
 
-        task_segments = [row for row in st.session_state.tasks_data if row.get('Task') == task_name]
-        default_num_segments = max([row.get('Segment', 1) for row in task_segments], default=1)
+        task_segments = [row for row in st.session_state.tasks_data if row.get("Task") == task_name]
+        default_num_segments = max([row.get("Segment", 1) for row in task_segments], default=1)
 
-        num_segments = st.number_input(f"How many segments for '{task_name}'?", min_value=1, value=default_num_segments, step=1, key=f"segments_count_{i}")
+        num_segments = st.number_input(
+            f"How many segments for '{task_name}'?",
+            min_value=1,
+            value=default_num_segments,
+            step=1,
+            key=f"segments_count_{i}",
+        )
 
+        last_end = None
         for j in range(num_segments):
             st.markdown(f"**Segment {j+1} for '{task_name}'**")
             default_start_date = datetime.now().date()
@@ -111,17 +163,33 @@ def create_gantt_chart_app():
 
             if j < len(task_segments):
                 seg = task_segments[j]
-                start_val = seg['Start']
+                start_val = seg["Start"]
                 if isinstance(start_val, str):
                     start_val = pd.to_datetime(start_val)
                 default_start_date = start_val.date()
-                default_duration = float(seg['Duration_Months'])
+                default_duration = float(seg["Duration_Months"])
+                last_end = seg["End"]
+            elif last_end is not None:
+                if isinstance(last_end, str):
+                    last_end = pd.to_datetime(last_end)
+                default_start_date = pd.to_datetime(last_end).date()
 
-            start_date_val = st.date_input(f"Start Date (Segment {j+1}) for '{task_name}'", value=default_start_date, key=f"start_date_{i}_{j}")
-            duration_months = st.number_input(f"Duration (Segment {j+1}) in months", min_value=0.1, value=default_duration, step=0.1, key=f"duration_{i}_{j}")
+            start_date_val = st.date_input(
+                f"Start Date (Segment {j+1}) for '{task_name}'",
+                value=default_start_date,
+                key=f"start_date_{i}_{j}",
+            )
+            duration_months = st.number_input(
+                f"Duration (Segment {j+1}) in months",
+                min_value=0.1,
+                value=default_duration,
+                step=0.1,
+                key=f"duration_{i}_{j}",
+            )
 
             start_datetime_obj = datetime.combine(start_date_val, datetime.min.time())
             end_datetime_obj = start_datetime_obj + timedelta(days=duration_months * 30.44)
+            last_end = end_datetime_obj
 
             current_tasks_input_data.append({
                 'Task': task_name,
