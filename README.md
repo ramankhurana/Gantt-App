@@ -1,17 +1,48 @@
 # Gantt-App
 
-This light-weight app can be used to create the Gantt-Chart by putting information in the graphical interface. Install the dependencies. 
+This repository contains a simple [Streamlit](https://streamlit.io/) application for building interactive Gantt charts. It lets you manage tasks directly from the browser and visualize them as timelines using [Plotly](https://plotly.com/python/).
 
+## Features
 
+- Add main tasks and split them into multiple segments with custom start dates and durations.
+- Upload one or more CSV files to load or merge saved projects.
+- Reorder tasks using move up/down controls or insert new tasks above or below existing ones.
+- Choose a single color or a continuous color scale and switch between light or dark themes.
+- Generate the chart and download the project data as a CSV file for future use.
+
+## Installation
+
+Install the required Python packages with
+
+```bash
 pip install -r requirements.txt
+```
 
+## Running the app
 
-Launch the app using:
+Start the application with
 
+```bash
 streamlit run app1.py
+```
 
+The Streamlit UI opens in your browser. Enter your project details in the sidebar or load a CSV file. Once all tasks and segments are configured, click the **Generate Gantt Chart** button to display the timeline.
 
-Input all the details related to the project for which Gantt-Chart needs to be created and run generate chart.
+## CSV format
 
-You can download the chart, or even save the project file to load later on to continue from same point.
+CSV files used for loading or downloading projects contain the following columns:
+
+- `Task` – name of the main task
+- `Segment` – numeric segment identifier (starting from 1)
+- `Start` – start date in ISO format (e.g. `2024-01-31T00:00:00`)
+- `End` – end date in ISO format
+- `Duration_Months` – duration used when generating the end date
+
+## Saving and loading projects
+
+After you generate a chart you can download the project data using the sidebar button. The downloaded CSV can be uploaded later to continue editing the same project.
+
+---
+
+This lightweight tool aims to make it easy to create and share Gantt charts without requiring additional spreadsheet or project management software.
 
