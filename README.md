@@ -5,7 +5,8 @@ This repository contains a simple [Streamlit](https://streamlit.io/) application
 ## Features
 
 - Add main tasks and split them into multiple segments with custom start dates and durations.
-- Upload a CSV file to load an existing project or continue editing a saved one.
+- Upload one or more CSV files to load or merge saved projects.
+- Reorder tasks using move up/down controls or insert new tasks above or below existing ones.
 - Choose a single color or a continuous color scale and switch between light or dark themes.
 - Generate the chart and download the project data as a CSV file for future use.
 
